@@ -44,7 +44,7 @@ const cornerRadius = 0.035;
 const housingColor = "#0e0e0e";
 // The flaps hanging behind the bottom one peek out below it, each layer a
 // little lower and further back.
-const stackCount = 3;
+const stackCount = 0;
 const stackStep = 0.012;
 const stackSpacing = 0.006;
 const stackShade = 0.12;
@@ -54,10 +54,16 @@ const positionJitter = 0.004;
 const rotationJitter = 0.005;
 const printJitter = 0.012;
 const shadeJitter = 0.12;
+// Worn print: blotchy ink and a few thin scratches through it on each flap.
+const inkGrain = 0.18;
+const scratchStrength = 0.55;
 // Width of the soft edge of the shadow the board casts into each hole.
-const shadowPenumbra = 0.05;
+const shadowPenumbra = 0.08;
+// Share of the direct light the board's shadow blocks; fill light and light
+// bouncing off the board still reach into it.
+const shadowStrength = 0.5;
 // Ambient light left at the edges of a hole, recessed behind the board.
-const edgeOcclusion = 0.65;
+const edgeOcclusion = 0.8;
 // Satin finish: a broad, faint highlight that glints as the flaps fall.
 const shininess = 64;
 const specularStrength = 0.025;
@@ -137,6 +143,8 @@ const vertexShader = /* glsl */ `
 `;
 
 const fragmentShader = /* glsl */ `
+  #include <common>
+
   uniform sampler2D atlas;
   uniform vec2 atlasGrid;
   uniform vec3 edgeColor;
@@ -144,6 +152,7 @@ const fragmentShader = /* glsl */ `
   uniform vec2 holeSize;
   uniform float holeZ;
   uniform float shadowPenumbra;
+  uniform float shadowStrength;
   uniform float edgeOcclusion;
   uniform float shininess;
   uniform float specularStrength;
@@ -156,6 +165,8 @@ const fragmentShader = /* glsl */ `
   uniform float stackShade;
   uniform float printJitter;
   uniform float shadeJitter;
+  uniform float inkGrain;
+  uniform float scratchStrength;
 
   varying vec2 vUv;
   varying vec3 vNormal;
@@ -171,6 +182,38 @@ const fragmentShader = /* glsl */ `
 
   float hash(vec3 p) {
     return fract(sin(dot(p, vec3(12.9898, 78.233, 37.719))) * 43758.5453);
+  }
+
+  float valueNoise(vec2 p, float seed) {
+    vec2 i = floor(p);
+    vec2 f = fract(p);
+    f = f * f * (3.0 - 2.0 * f);
+    return mix(
+      mix(hash(vec3(i, seed)), hash(vec3(i + vec2(1.0, 0.0), seed)), f.x),
+      mix(hash(vec3(i + vec2(0.0, 1.0), seed)), hash(vec3(i + 1.0, seed)), f.x),
+      f.y
+    );
+  }
+
+  // Up to four thin straight scratches per flap, tapered at both ends.
+  // p is in cell units with square aspect.
+  float scratches(vec2 p, vec3 flap) {
+    float amount = 0.0;
+    for (int i = 0; i < 4; i++) {
+      vec3 key = flap + 10.0 + float(i) * 7.0;
+      if (hash(key) < 0.45) continue;
+      vec2 start = vec2(hash(key + 1.0) * 0.67, hash(key + 2.0));
+      float angle = hash(key + 3.0) * PI;
+      float len = mix(0.05, 0.3, hash(key + 4.0));
+      vec2 direction = vec2(cos(angle), sin(angle));
+      float along = clamp(dot(p - start, direction), 0.0, len);
+      float offset = length(p - start - direction * along);
+      float width = mix(0.001, 0.0025, hash(key + 5.0)) * sin(PI * along / len);
+      amount = max(
+        amount, 1.0 - smoothstep(width, width + fwidth(offset), offset)
+      );
+    }
+    return amount;
   }
 
   // Distance inside the hole outline, negative outside of it.
@@ -231,14 +274,26 @@ const fragmentShader = /* glsl */ `
       vec2 misprint = vec2(hash(flap), hash(flap + 1.0)) - 0.5;
       color = atlasColor(index, uv + misprint * printJitter) *
         (1.0 + (hash(flap + 2.0) - 0.5) * shadeJitter);
+
+      // Wear shows on the light ink only, the dark flap hides it.
+      vec2 cellPoint = uv * vec2(2.0 / 3.0, 1.0);
+      float ink = smoothstep(0.05, 0.4, color.g);
+      float grain = 0.6 * valueNoise(cellPoint * 40.0, flap.x + flap.y) +
+        0.4 * valueNoise(cellPoint * 160.0, flap.x - flap.y);
+      color *= 1.0 - ink * inkGrain * grain;
+      color = mix(
+        color,
+        atlasColor(0.0, vec2(0.5, 0.1)),
+        ink * scratchStrength * scratches(cellPoint, flap)
+      );
     }
 
     // Follow the ray towards the light up to the board: if it leaves
     // through the hole, the point is lit, otherwise the board shades it.
     vec3 towardsBoard = vLocal +
       lightDirection * (holeZ - vLocal.z) / lightDirection.z;
-    float shadow = smoothstep(
-      -shadowPenumbra, shadowPenumbra, insideHole(towardsBoard.xy)
+    float shadow = 1.0 - shadowStrength * smoothstep(
+      shadowPenumbra, -shadowPenumbra, insideHole(towardsBoard.xy)
     );
     // Less ambient light reaches the hole edges, deep behind the board.
     float occlusion = mix(
@@ -498,6 +553,7 @@ export function Segments({
           holeSize: { value: new Vector2(segmentWidth, segmentHeight) },
           holeZ: { value: segmentDepth + holeEdgeZ },
           shadowPenumbra: { value: shadowPenumbra },
+          shadowStrength: { value: shadowStrength },
           edgeOcclusion: { value: edgeOcclusion },
           shininess: { value: shininess },
           specularStrength: { value: specularStrength },
@@ -515,6 +571,8 @@ export function Segments({
           stackShade: { value: stackShade },
           printJitter: { value: printJitter },
           shadeJitter: { value: shadeJitter },
+          inkGrain: { value: inkGrain },
+          scratchStrength: { value: scratchStrength },
         },
       }),
     [],
