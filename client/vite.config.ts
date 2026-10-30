@@ -13,5 +13,11 @@ export default defineConfig(({ command }) => ({
   // three, which crashes on Netlify's function runtime. The dev server can't
   // run bundled CommonJS, so it keeps them external.
   ssr: command === 'build' ? { noExternal: true } : undefined,
-  plugins: [tailwindcss(), tanstackStart(), netlify(), viteReact()],
+  plugins: [
+    tailwindcss(),
+    tanstackStart(),
+    // The app has no edge functions, and emulating them needs a working Deno.
+    netlify({ dev: { edgeFunctions: { enabled: false } } }),
+    viteReact(),
+  ],
 }))
