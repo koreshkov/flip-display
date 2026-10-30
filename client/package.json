@@ -19,6 +19,7 @@
   },
   "homepage": "https://github.com/koreshkov/flip-display#readme",
   "dependencies": {
+    "@fontsource/roboto-condensed": "^5.3.0",
     "@react-three/drei": "^10.7.9",
     "@react-three/fiber": "^9.8.2",
     "@tanstack/react-router": "^1.170.46",

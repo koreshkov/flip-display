@@ -3,12 +3,14 @@ import { useFrame, useThree } from "@react-three/fiber";
 import { easing } from "maath";
 import { MathUtils, Path, PerspectiveCamera, Shape } from "three";
 import type { ExtrudeGeometryOptions } from "three";
+import {
+  getSegmentCenter,
+  getVisibleSize,
+  segmentDepth,
+  segmentHeight,
+  segmentWidth,
+} from "~/display/layout";
 
-const segmentWidth = 0.6;
-const segmentHeight = 0.9;
-const horizontalSpacing = 0.1;
-const verticalSpacing = 0.3;
-const padding = 0.6;
 const thickness = 0.05;
 const bevelSize = 0.04;
 const bevelThickness = 0.04;
@@ -39,11 +41,7 @@ export function Board({ rows = 5, columns = 12 }: BoardProps) {
     state.size.height ? state.size.width / state.size.height : 1,
   );
 
-  // The segments plus padding is the area that must always stay visible.
-  const width =
-    columns * segmentWidth + (columns - 1) * horizontalSpacing + 2 * padding;
-  const height =
-    rows * segmentHeight + (rows - 1) * verticalSpacing + 2 * padding;
+  const { width, height } = getVisibleSize(rows, columns);
 
   // Viewport size at the board's front face once the visible area fits it.
   const viewportHeight = Math.max(height, width / aspect);
@@ -91,8 +89,6 @@ export function Board({ rows = 5, columns = 12 }: BoardProps) {
   });
 
   const shape = useMemo(() => {
-    const left = -width / 2;
-    const top = height / 2;
     const outerX = (coverHeight * aspect) / 2 + buffer;
     const outerY = coverHeight / 2 + buffer;
 
@@ -105,8 +101,9 @@ export function Board({ rows = 5, columns = 12 }: BoardProps) {
 
     for (let row = 0; row < rows; row++) {
       for (let column = 0; column < columns; column++) {
-        const x = left + padding + column * (segmentWidth + horizontalSpacing);
-        const y = top - padding - row * (segmentHeight + verticalSpacing);
+        const [centerX, centerY] = getSegmentCenter(row, column, rows, columns);
+        const x = centerX - segmentWidth / 2;
+        const y = centerY + segmentHeight / 2;
         board.holes.push(
           new Path()
             .moveTo(x, y)
@@ -119,17 +116,26 @@ export function Board({ rows = 5, columns = 12 }: BoardProps) {
     }
 
     return board;
-  }, [rows, columns, width, height, coverHeight, aspect]);
+  }, [rows, columns, coverHeight, aspect]);
 
   return (
-    <mesh position-z={-(thickness + bevelThickness)}>
-      <extrudeGeometry args={[shape, extrudeOptions]} />
-      <meshPhysicalMaterial
-        color="#1a1a1a"
-        roughness={0.2}
-        clearcoat={1}
-        clearcoatRoughness={0.1}
-      />
-    </mesh>
+    <>
+      <mesh position-z={-(thickness + bevelThickness)}>
+        <extrudeGeometry args={[shape, extrudeOptions]} />
+        <meshPhysicalMaterial
+          color="#1a1a1a"
+          roughness={0.2}
+          clearcoat={1}
+          clearcoatRoughness={0.1}
+        />
+      </mesh>
+      {/* Dark cavity behind the holes, seen around the recessed segments. */}
+      <mesh position-z={-segmentDepth - 0.05}>
+        <planeGeometry
+          args={[coverHeight * aspect + 2 * buffer, coverHeight + 2 * buffer]}
+        />
+        <meshBasicMaterial color="#050505" />
+      </mesh>
+    </>
   );
 }
