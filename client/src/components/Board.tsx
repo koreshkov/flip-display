@@ -38,7 +38,7 @@ type BoardProps = {
   columns?: number;
 };
 
-export function Board({ rows = 5, columns = 12 }: BoardProps) {
+export function Board({ rows = 5, columns = 13 }: BoardProps) {
   const camera = useThree((state) => state.camera);
   const aspect = useThree((state) =>
     state.size.height ? state.size.width / state.size.height : 1,

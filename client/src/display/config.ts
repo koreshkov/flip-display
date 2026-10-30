@@ -18,8 +18,14 @@ const maxMessageLength = 2000;
 
 export const defaultConfig: DisplayConfig = {
   rows: 5,
-  columns: 12,
-  message: "HELLO WORLD",
+  columns: 13,
+  // Every character on the drum; the alphabet fills exactly two rows.
+  message: [
+    "ABCDEFGHIJKLMNOPQRSTUVWXYZ",
+    "0123456789",
+    ".,:;!?'\"-/",
+    "&@#$%+=()*",
+  ].join("\n"),
   characterGroups: allCharacterGroups,
 };
 
