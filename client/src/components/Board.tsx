@@ -1,5 +1,6 @@
-import { useLayoutEffect, useMemo } from "react";
-import { useThree } from "@react-three/fiber";
+import { useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useFrame, useThree } from "@react-three/fiber";
+import { easing } from "maath";
 import { MathUtils, Path, PerspectiveCamera, Shape } from "three";
 import type { ExtrudeGeometryOptions } from "three";
 
@@ -13,6 +14,8 @@ const bevelSize = 0.04;
 const bevelThickness = 0.04;
 // Extra board beyond the viewport edges, so no gaps show while resizing.
 const buffer = 1;
+// Approximate seconds for the camera to settle after the grid changes.
+const cameraSmoothTime = 0.4;
 
 // Negative offset keeps the bevel inside the nominal outline, so the holes
 // widen towards the front and the chamfer faces the viewer.
@@ -44,19 +47,54 @@ export function Board({ rows = 5, columns = 12 }: BoardProps) {
 
   // Viewport size at the board's front face once the visible area fits it.
   const viewportHeight = Math.max(height, width / aspect);
-  const viewportWidth = viewportHeight * aspect;
+
+  // While the camera moves between two grid sizes, the board must cover the
+  // larger of the two views, otherwise its outer edges slide into sight.
+  const [coverHeight, setCoverHeight] = useState(viewportHeight);
+  const cameraZ = useRef(0);
+  const animating = useRef(false);
+  const grid = useRef({ rows, columns });
 
   useLayoutEffect(() => {
     if (!(camera instanceof PerspectiveCamera)) return;
     const halfFov = MathUtils.degToRad(camera.fov / 2);
-    camera.position.set(0, 0, viewportHeight / 2 / Math.tan(halfFov));
-  }, [camera, viewportHeight]);
+    cameraZ.current = viewportHeight / 2 / Math.tan(halfFov);
+
+    const gridChanged =
+      grid.current.rows !== rows || grid.current.columns !== columns;
+    grid.current = { rows, columns };
+
+    // Animate grid changes; snap on mount and resize.
+    if (gridChanged) {
+      animating.current = true;
+      setCoverHeight((current) => Math.max(current, viewportHeight));
+    } else {
+      animating.current = false;
+      camera.position.set(0, 0, cameraZ.current);
+      setCoverHeight(viewportHeight);
+    }
+  }, [camera, rows, columns, viewportHeight]);
+
+  useFrame((_, delta) => {
+    if (!animating.current) return;
+    const moving = easing.damp(
+      camera.position,
+      "z",
+      cameraZ.current,
+      cameraSmoothTime,
+      delta,
+    );
+    if (!moving) {
+      animating.current = false;
+      setCoverHeight(viewportHeight);
+    }
+  });
 
   const shape = useMemo(() => {
     const left = -width / 2;
     const top = height / 2;
-    const outerX = viewportWidth / 2 + buffer;
-    const outerY = viewportHeight / 2 + buffer;
+    const outerX = (coverHeight * aspect) / 2 + buffer;
+    const outerY = coverHeight / 2 + buffer;
 
     const board = new Shape()
       .moveTo(-outerX, -outerY)
@@ -81,7 +119,7 @@ export function Board({ rows = 5, columns = 12 }: BoardProps) {
     }
 
     return board;
-  }, [rows, columns, width, height, viewportWidth, viewportHeight]);
+  }, [rows, columns, width, height, coverHeight, aspect]);
 
   return (
     <mesh position-z={-(thickness + bevelThickness)}>
