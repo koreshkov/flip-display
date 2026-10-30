@@ -4,3 +4,6 @@ node_modules
 .nitro
 dist
 .env
+
+# Local Netlify folder
+.netlify
