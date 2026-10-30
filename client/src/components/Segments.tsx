@@ -518,6 +518,8 @@ type SegmentsProps = {
   lines: string[];
   // Characters on the drum, in flipping order; index 0 is the blank.
   charset: string;
+  // CSS color of the characters.
+  letterColor: string;
   // Position of the scene's directional light, which lights the flaps.
   lightPosition: [x: number, y: number, z: number];
 };
@@ -527,11 +529,12 @@ export function Segments({
   columns,
   lines,
   charset,
+  letterColor,
   lightPosition,
 }: SegmentsProps) {
   const count = rows * columns;
   const mesh = useRef<InstancedMesh>(null);
-  const atlas = useCharacterAtlas(charset);
+  const atlas = useCharacterAtlas(charset, letterColor);
 
   const geometry = useMemo(() => createSegmentGeometry(count), [count]);
   useEffect(() => () => geometry.dispose(), [geometry]);

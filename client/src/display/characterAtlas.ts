@@ -6,11 +6,10 @@ export const atlasColumns = 8;
 const cellWidth = 128;
 const cellHeight = 192;
 const flapColor = "#161616";
-const glyphColor = "#f1eee4";
 const font = `700 ${cellHeight * 0.62}px "Roboto Condensed", "Arial Narrow", sans-serif`;
 
 // One cell per character, in charset order, left to right and top to bottom.
-function createAtlas(charset: string) {
+function createAtlas(charset: string, glyphColor: string) {
   const rows = Math.ceil(charset.length / atlasColumns);
   const canvas = document.createElement("canvas");
   canvas.width = atlasColumns * cellWidth;
@@ -43,7 +42,7 @@ function createAtlas(charset: string) {
   return texture;
 }
 
-export function useCharacterAtlas(charset: string) {
+export function useCharacterAtlas(charset: string, glyphColor: string) {
   const [texture, setTexture] = useState<CanvasTexture | null>(null);
 
   useEffect(() => {
@@ -55,14 +54,14 @@ export function useCharacterAtlas(charset: string) {
       .catch(() => undefined)
       .then(() => {
         if (cancelled) return;
-        created = createAtlas(charset);
+        created = createAtlas(charset, glyphColor);
         setTexture(created);
       });
     return () => {
       cancelled = true;
       created?.dispose();
     };
-  }, [charset]);
+  }, [charset, glyphColor]);
 
   return texture;
 }

@@ -7,8 +7,8 @@ import {
   layoutMessage,
 } from "~/display/characters";
 import type { CharacterGroup } from "~/display/characters";
-import { maxColumns, maxRows } from "~/display/config";
-import type { DisplayConfig } from "~/display/config";
+import { letterColors, maxColumns, maxRows } from "~/display/config";
+import type { DisplayConfig, LetterColor } from "~/display/config";
 
 type ConfigFormProps = {
   // Initial values; remount the form (via `key`) to load new ones.
@@ -86,6 +86,35 @@ export function ConfigForm({
             </span>
           </label>
         ))}
+      </fieldset>
+
+      <fieldset className="flex flex-col gap-2 text-sm">
+        <legend className="mb-1.5 text-neutral-400">Letter color</legend>
+        <div className="flex gap-3">
+          {(Object.keys(letterColors) as LetterColor[]).map((color) => (
+            <label
+              key={color}
+              title={letterColors[color].label}
+              style={
+                { "--swatch": letterColors[color].value } as React.CSSProperties
+              }
+            >
+              <input
+                type="radio"
+                name="letterColor"
+                value={color}
+                checked={draft.letterColor === color}
+                onChange={() => setDraft({ ...draft, letterColor: color })}
+                className="peer sr-only"
+              />
+              <span className="sr-only">{letterColors[color].label}</span>
+              <span
+                aria-hidden="true"
+                className="block size-7 cursor-pointer rounded-full bg-(--swatch) ring-2 ring-transparent ring-offset-2 ring-offset-neutral-900 transition peer-checked:ring-(--swatch) peer-focus-visible:outline-2 peer-focus-visible:outline-offset-6 peer-focus-visible:outline-white"
+              />
+            </label>
+          ))}
+        </div>
       </fieldset>
 
       <label className="flex flex-col gap-1.5 text-sm">

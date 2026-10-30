@@ -5,11 +5,19 @@ import {
 } from "./characters";
 import type { CharacterGroup } from "./characters";
 
+// Paint on the flaps; yellow as on airport departure boards.
+export const letterColors = {
+  white: { label: "White", value: "#f1eee4" },
+  yellow: { label: "Yellow", value: "#f5c02c" },
+} as const;
+export type LetterColor = keyof typeof letterColors;
+
 export type DisplayConfig = {
   rows: number;
   columns: number;
   message: string;
   characterGroups: CharacterGroup[];
+  letterColor: LetterColor;
 };
 
 export const maxRows = 20;
@@ -27,6 +35,7 @@ export const defaultConfig: DisplayConfig = {
     "&@#$%+=()*",
   ].join("\n"),
   characterGroups: allCharacterGroups,
+  letterColor: "white",
 };
 
 function clampInteger(value: unknown, max: number, fallback: number) {
@@ -58,5 +67,10 @@ export function sanitizeConfig(input: unknown): DisplayConfig | null {
     columns: clampInteger(value.columns, maxColumns, defaultConfig.columns),
     message,
     characterGroups,
+    letterColor:
+      typeof value.letterColor === "string" &&
+      Object.hasOwn(letterColors, value.letterColor)
+        ? (value.letterColor as LetterColor)
+        : defaultConfig.letterColor,
   };
 }

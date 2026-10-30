@@ -7,7 +7,7 @@ import { Overlay } from "./Overlay";
 import { RemoteModal } from "./RemoteModal";
 import { Segments } from "./Segments";
 import { getCharset, layoutMessage } from "~/display/characters";
-import { defaultConfig } from "~/display/config";
+import { defaultConfig, letterColors } from "~/display/config";
 import type { DisplayConfig } from "~/display/config";
 import { useDisplayPeer } from "~/display/useDisplayPeer";
 
@@ -66,6 +66,7 @@ export function SplitFlipDisplay() {
           columns={config.columns}
           lines={lines}
           charset={charset}
+          letterColor={letterColors[config.letterColor].value}
           lightPosition={lightPosition}
         />
       </Canvas>
