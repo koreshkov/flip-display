@@ -4,11 +4,18 @@ import { useEffect, useState } from "react";
 const idleTimeout = 5000;
 
 type OverlayProps = {
+  sound: boolean;
+  onToggleSound: () => void;
   onOpenConfig: () => void;
   onOpenRemote: () => void;
 };
 
-export function Overlay({ onOpenConfig, onOpenRemote }: OverlayProps) {
+export function Overlay({
+  sound,
+  onToggleSound,
+  onOpenConfig,
+  onOpenRemote,
+}: OverlayProps) {
   const [fullscreen, setFullscreen] = useState(false);
   const [idle, setIdle] = useState(false);
 
@@ -48,6 +55,17 @@ export function Overlay({ onOpenConfig, onOpenRemote }: OverlayProps) {
       data-idle={idle || undefined}
       className="group pointer-events-none fixed inset-0 flex items-start justify-end gap-2 p-4 transition-opacity duration-500 data-idle:not-focus-within:opacity-0"
     >
+      <OverlayButton
+        label={sound ? "Mute flip sound" : "Play flip sound"}
+        onClick={onToggleSound}
+      >
+        <path d="M11 5 6 9H2v6h4l5 4z" />
+        {sound ? (
+          <path d="M15.5 8.5a5 5 0 0 1 0 7M19 5a10 10 0 0 1 0 14" />
+        ) : (
+          <path d="m22 9-6 6M16 9l6 6" />
+        )}
+      </OverlayButton>
       <OverlayButton
         label={fullscreen ? "Exit full screen" : "Enter full screen"}
         onClick={toggleFullscreen}

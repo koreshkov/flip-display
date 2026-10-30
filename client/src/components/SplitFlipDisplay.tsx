@@ -9,15 +9,17 @@ import { Segments } from "./Segments";
 import { getCharset, layoutMessage } from "~/display/characters";
 import { defaultConfig, letterColors } from "~/display/config";
 import type { DisplayConfig } from "~/display/config";
+import { useFlipSound } from "~/display/flipSound";
 import { useDisplayPeer } from "~/display/useDisplayPeer";
 
-const lightPosition: [number, number, number] = [3, 3, 8];
+const lightPosition: [number, number, number] = [3, 1.5, 4];
 
 export function SplitFlipDisplay() {
   const [config, setConfig] = useState<DisplayConfig>(defaultConfig);
   const [configOpen, setConfigOpen] = useState(false);
   const [remoteOpen, setRemoteOpen] = useState(false);
   const peer = useDisplayPeer(config, setConfig);
+  const sound = useFlipSound();
 
   // Messages take turns; the next one is due `interval` seconds after the
   // current one has fully landed. Only grows, the message wraps around.
@@ -86,10 +88,13 @@ export function SplitFlipDisplay() {
           charset={charset}
           letterColor={letterColors[config.letterColor].value}
           onSettled={showNextLater}
+          onFlapsLanded={sound.play}
           lightPosition={lightPosition}
         />
       </Canvas>
       <Overlay
+        sound={sound.enabled}
+        onToggleSound={sound.toggle}
         onOpenConfig={() => setConfigOpen(true)}
         onOpenRemote={() => setRemoteOpen(true)}
       />

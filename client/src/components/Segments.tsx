@@ -523,6 +523,8 @@ type SegmentsProps = {
   // Called once every flap has landed after `lines` changed, and once the
   // board is at rest after this callback itself changes.
   onSettled?: () => void;
+  // Called each frame in which flaps hit the stop, e.g. to play the clack.
+  onFlapsLanded?: (count: number, delta: number) => void;
   // Position of the scene's directional light, which lights the flaps.
   lightPosition: [x: number, y: number, z: number];
 };
@@ -534,6 +536,7 @@ export function Segments({
   charset,
   letterColor,
   onSettled,
+  onFlapsLanded,
   lightPosition,
 }: SegmentsProps) {
   const count = rows * columns;
@@ -545,6 +548,10 @@ export function Segments({
     onSettledRef.current = onSettled;
     settled.current = false;
   }, [onSettled]);
+  const onFlapsLandedRef = useRef(onFlapsLanded);
+  useLayoutEffect(() => {
+    onFlapsLandedRef.current = onFlapsLanded;
+  }, [onFlapsLanded]);
 
   const geometry = useMemo(() => createSegmentGeometry(count), [count]);
   useEffect(() => () => geometry.dispose(), [geometry]);
@@ -667,19 +674,24 @@ export function Segments({
       "progress",
     ) as InstancedBufferAttribute;
     let changed = false;
+    let landed = 0;
 
     for (let i = 0; i < count; i++) {
       if (current[i] === target[i] && progress[i] === 0) continue;
 
       // Flip through the drum in order until the target comes up. The flap
       // that reveals the target also settles before the segment rests.
+      // A flap lands when its progress passes 1, before any settling.
+      let from = progress[i];
       progress[i] += delta / duration[i];
       for (;;) {
         const next = (current[i] + 1) % charset.length;
         const end = next === target[i] ? 1 + settleLength : 1;
+        if (from < 1 && progress[i] >= 1) landed++;
         if (progress[i] < end) break;
         current[i] = next;
         progress[i] = next === target[i] ? 0 : progress[i] - end;
+        from = 0;
       }
 
       const resting = current[i] === target[i] && progress[i] === 0;
@@ -692,6 +704,7 @@ export function Segments({
       changed = true;
     }
 
+    if (landed > 0) onFlapsLandedRef.current?.(landed, delta);
     if (changed) {
       chars.needsUpdate = true;
       progressAttribute.needsUpdate = true;
