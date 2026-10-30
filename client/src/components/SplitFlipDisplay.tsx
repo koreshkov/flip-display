@@ -37,7 +37,11 @@ export function SplitFlipDisplay() {
         <ambientLight intensity={0.3} />
         {/* Grazing angle: the flat face reflects away from the camera, while
             the bevels tilt towards the light and bounce it back. */}
-        <directionalLight position={lightPosition} intensity={3} />
+        <directionalLight position={lightPosition} intensity={1.5} />
+        <directionalLight
+          position={[-lightPosition[0], -lightPosition[1], lightPosition[2]]}
+          intensity={0.75}
+        />
         <Board rows={config.rows} columns={config.columns} />
         <Segments
           rows={config.rows}
