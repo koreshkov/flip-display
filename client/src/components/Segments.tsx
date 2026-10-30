@@ -37,6 +37,9 @@ const edgeColor = "#0c0c0c";
 const shadowPenumbra = 0.05;
 // Ambient light left at the edges of a hole, recessed behind the board.
 const edgeOcclusion = 0.65;
+// Satin finish: a broad, faint highlight that glints as the flaps fall.
+const shininess = 64;
+const specularStrength = 0.025;
 
 // Each segment is built from three solid flaps, told apart by `part`:
 // 0 - the upright top flap, showing the next character
@@ -64,6 +67,7 @@ const vertexShader = /* glsl */ `
   varying vec2 vChars;
   varying float vAngle;
   varying vec3 vLocal;
+  varying vec3 vWorld;
 
   // Released from upright, the flap speeds up as it falls, then bounces
   // off the stop when it is the last one to drop.
@@ -94,8 +98,9 @@ const vertexShader = /* glsl */ `
     vPart = part;
     vFace = face;
     vChars = chars;
-    gl_Position = projectionMatrix * modelViewMatrix * instanceMatrix *
-      vec4(transformed, 1.0);
+    vec4 world = modelMatrix * instanceMatrix * vec4(transformed, 1.0);
+    vWorld = world.xyz;
+    gl_Position = projectionMatrix * viewMatrix * world;
   }
 `;
 
@@ -108,6 +113,8 @@ const fragmentShader = /* glsl */ `
   uniform float holeZ;
   uniform float shadowPenumbra;
   uniform float edgeOcclusion;
+  uniform float shininess;
+  uniform float specularStrength;
 
   varying vec2 vUv;
   varying vec3 vNormal;
@@ -116,6 +123,7 @@ const fragmentShader = /* glsl */ `
   varying vec2 vChars;
   varying float vAngle;
   varying vec3 vLocal;
+  varying vec3 vWorld;
 
   // Distance inside the hole outline, negative outside of it.
   float insideHole(vec2 p) {
@@ -154,8 +162,15 @@ const fragmentShader = /* glsl */ `
       edgeOcclusion, 1.0, smoothstep(0.0, 0.12, insideHole(vLocal.xy))
     );
 
-    float diffuse = max(dot(normalize(vNormal), lightDirection), 0.0);
+    vec3 normal = normalize(vNormal);
+    float facing = dot(normal, lightDirection);
+    float diffuse = max(facing, 0.0);
     float light = 0.3 * occlusion + 0.75 * diffuse * shadow;
+
+    // Faces turned away from the light get no highlight.
+    vec3 halfway = normalize(lightDirection + normalize(cameraPosition - vWorld));
+    float specular = specularStrength * shadow * step(0.0, facing) *
+      pow(max(dot(normal, halfway), 0.0), shininess);
 
     // The falling flap shades the still halves near the hinge, most when
     // it sticks straight out.
@@ -164,7 +179,7 @@ const fragmentShader = /* glsl */ `
       light *= 1.0 - 0.45 * sin(vAngle) * nearHinge * nearHinge;
     }
 
-    gl_FragColor = vec4(color * light, 1.0);
+    gl_FragColor = vec4(color * light + specular, 1.0);
     #include <colorspace_fragment>
   }
 `;
@@ -347,6 +362,8 @@ export function Segments({
           holeZ: { value: segmentDepth + holeEdgeZ },
           shadowPenumbra: { value: shadowPenumbra },
           edgeOcclusion: { value: edgeOcclusion },
+          shininess: { value: shininess },
+          specularStrength: { value: specularStrength },
         },
       }),
     [],
