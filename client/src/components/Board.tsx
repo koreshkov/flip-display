@@ -14,6 +14,9 @@ import {
 const thickness = 0.05;
 const bevelSize = 0.04;
 const bevelThickness = 0.04;
+// The holes keep their nominal size from the back of the board up to this z;
+// in front of it the bevel widens them. The front face is at z = 0.
+export const holeEdgeZ = -bevelThickness;
 // Extra board beyond the viewport edges, so no gaps show while resizing.
 const buffer = 1;
 // Approximate seconds for the camera to settle after the grid changes.

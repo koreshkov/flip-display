@@ -12,6 +12,7 @@ import {
   Vector2,
   Vector3,
 } from "three";
+import { holeEdgeZ } from "./Board";
 import { useCharacterAtlas } from "~/display/characterAtlas";
 import {
   getSegmentCenter,
@@ -32,6 +33,10 @@ const flapThickness = 0.03;
 // Space between the two halves around the hinge pin.
 const hingeGap = 0.012;
 const edgeColor = "#0c0c0c";
+// Width of the soft edge of the shadow the board casts into each hole.
+const shadowPenumbra = 0.05;
+// Ambient light left at the edges of a hole, recessed behind the board.
+const edgeOcclusion = 0.65;
 
 // Each segment is built from three solid flaps, told apart by `part`:
 // 0 - the upright top flap, showing the next character
@@ -58,6 +63,7 @@ const vertexShader = /* glsl */ `
   varying float vFace;
   varying vec2 vChars;
   varying float vAngle;
+  varying vec3 vLocal;
 
   // Released from upright, the flap speeds up as it falls, then bounces
   // off the stop when it is the last one to drop.
@@ -83,6 +89,7 @@ const vertexShader = /* glsl */ `
     }
 
     vUv = uv;
+    vLocal = transformed;
     vNormal = normalDirection;
     vPart = part;
     vFace = face;
@@ -97,6 +104,10 @@ const fragmentShader = /* glsl */ `
   uniform vec2 atlasGrid;
   uniform vec3 edgeColor;
   uniform vec3 lightDirection;
+  uniform vec2 holeSize;
+  uniform float holeZ;
+  uniform float shadowPenumbra;
+  uniform float edgeOcclusion;
 
   varying vec2 vUv;
   varying vec3 vNormal;
@@ -104,6 +115,13 @@ const fragmentShader = /* glsl */ `
   varying float vFace;
   varying vec2 vChars;
   varying float vAngle;
+  varying vec3 vLocal;
+
+  // Distance inside the hole outline, negative outside of it.
+  float insideHole(vec2 p) {
+    vec2 inside = holeSize / 2.0 - abs(p);
+    return min(inside.x, inside.y);
+  }
 
   void main() {
     vec3 color = edgeColor;
@@ -124,8 +142,20 @@ const fragmentShader = /* glsl */ `
       )).rgb;
     }
 
+    // Follow the ray towards the light up to the board: if it leaves
+    // through the hole, the point is lit, otherwise the board shades it.
+    vec3 towardsBoard = vLocal +
+      lightDirection * (holeZ - vLocal.z) / lightDirection.z;
+    float shadow = smoothstep(
+      -shadowPenumbra, shadowPenumbra, insideHole(towardsBoard.xy)
+    );
+    // Less ambient light reaches the hole edges, deep behind the board.
+    float occlusion = mix(
+      edgeOcclusion, 1.0, smoothstep(0.0, 0.12, insideHole(vLocal.xy))
+    );
+
     float diffuse = max(dot(normalize(vNormal), lightDirection), 0.0);
-    float light = 0.3 + 0.75 * diffuse;
+    float light = 0.3 * occlusion + 0.75 * diffuse * shadow;
 
     // The falling flap shades the still halves near the hinge, most when
     // it sticks straight out.
@@ -313,6 +343,10 @@ export function Segments({
           hingeZ: { value: -flapThickness / 2 },
           settleLength: { value: settleLength },
           bounceAngle: { value: bounceAngle },
+          holeSize: { value: new Vector2(segmentWidth, segmentHeight) },
+          holeZ: { value: segmentDepth + holeEdgeZ },
+          shadowPenumbra: { value: shadowPenumbra },
+          edgeOcclusion: { value: edgeOcclusion },
         },
       }),
     [],
