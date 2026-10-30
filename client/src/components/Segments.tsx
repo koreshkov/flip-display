@@ -42,6 +42,12 @@ const edgeColor = "#0c0c0c";
 const flapMargin = 0.03;
 const cornerRadius = 0.035;
 const housingColor = "#0e0e0e";
+// The flaps hanging behind the bottom one peek out below it, each layer a
+// little lower and further back.
+const stackCount = 3;
+const stackStep = 0.012;
+const stackSpacing = 0.006;
+const stackShade = 0.12;
 // Width of the soft edge of the shadow the board casts into each hole.
 const shadowPenumbra = 0.05;
 // Ambient light left at the edges of a hole, recessed behind the board.
@@ -58,12 +64,14 @@ const specularStrength = 0.025;
 //     two and rotates about the hinge line, landing exactly over flap 1.
 // 3 - the housing plate behind the flaps, seen around them.
 // 4 - the hinge pins at both sides.
+// 5 - the stack of flaps behind the bottom flap; `layer` counts back from 1.
 // `face` tells the printed front (0) and back (1) from the bare edges (2).
 const vertexShader = /* glsl */ `
   #include <common>
 
   attribute float part;
   attribute float face;
+  attribute float layer;
   attribute vec2 chars;
   attribute float progress;
 
@@ -80,6 +88,7 @@ const vertexShader = /* glsl */ `
   varying vec3 vLocal;
   varying vec3 vWorld;
   varying vec3 vPosition;
+  varying float vLayer;
 
   // Released from upright, the flap speeds up as it falls, then bounces
   // off the stop when it is the last one to drop.
@@ -110,6 +119,7 @@ const vertexShader = /* glsl */ `
     vNormal = normalDirection;
     vPart = part;
     vFace = face;
+    vLayer = layer;
     vChars = chars;
     vec4 world = modelMatrix * instanceMatrix * vec4(transformed, 1.0);
     vWorld = world.xyz;
@@ -133,6 +143,8 @@ const fragmentShader = /* glsl */ `
   uniform vec3 housingColor;
   uniform vec3 pinColor;
   uniform float pinSpecular;
+  uniform float stackStep;
+  uniform float stackShade;
 
   varying vec2 vUv;
   varying vec3 vNormal;
@@ -143,6 +155,7 @@ const fragmentShader = /* glsl */ `
   varying vec3 vLocal;
   varying vec3 vWorld;
   varying vec3 vPosition;
+  varying float vLayer;
 
   // Distance inside the hole outline, negative outside of it.
   float insideHole(vec2 p) {
@@ -156,16 +169,36 @@ const fragmentShader = /* glsl */ `
     return length(max(q, 0.0)) + min(max(q.x, q.y), 0.0) - radius;
   }
 
+  vec3 atlasColor(float index, vec2 uv) {
+    index = floor(index + 0.5);
+    vec2 cell = vec2(mod(index, atlasGrid.x), floor(index / atlasGrid.x));
+    return texture2D(atlas, vec2(
+      (cell.x + uv.x) / atlasGrid.x,
+      1.0 - (cell.y + 1.0 - uv.y) / atlasGrid.y
+    )).rgb;
+  }
+
   void main() {
     // Round the flaps' outer corners, measured before the flap rotates.
-    if (vPart < 2.5 &&
-        roundedRect(vPosition.xy, flapSize / 2.0, cornerRadius) > 0.0) {
+    // Stacked flaps reach lower, which moves their bottom corners down.
+    vec2 extension = vec2(0.0, vLayer * stackStep / 2.0);
+    if ((vPart < 2.5 || vPart > 4.5) && roundedRect(
+      vPosition.xy + extension, flapSize / 2.0 + extension, cornerRadius
+    ) > 0.0) {
       discard;
     }
 
     vec3 color = edgeColor;
 
-    if (vPart > 3.5) {
+    if (vPart > 4.5) {
+      // Only the blank bottom edges of the stack show: each in the shadow
+      // of the flap in front at the top, catching light at its edge.
+      if (vFace < 1.5) {
+        float bottom = -flapSize.y / 2.0 - vLayer * stackStep;
+        float shown = clamp((vPosition.y - bottom) / stackStep, 0.0, 1.0);
+        color = atlasColor(0.0, vec2(0.5, 0.1)) * mix(2.5, 0.3, shown);
+      }
+    } else if (vPart > 3.5) {
       color = pinColor;
     } else if (vPart > 2.5) {
       color = housingColor;
@@ -177,12 +210,7 @@ const fragmentShader = /* glsl */ `
         index = vChars.y;
         uv.y = 1.0 - uv.y;
       }
-      index = floor(index + 0.5);
-      vec2 cell = vec2(mod(index, atlasGrid.x), floor(index / atlasGrid.x));
-      color = texture2D(atlas, vec2(
-        (cell.x + uv.x) / atlasGrid.x,
-        1.0 - (cell.y + 1.0 - uv.y) / atlasGrid.y
-      )).rgb;
+      color = atlasColor(index, uv);
     }
 
     // Follow the ray towards the light up to the board: if it leaves
@@ -201,6 +229,7 @@ const fragmentShader = /* glsl */ `
     float facing = dot(normal, lightDirection);
     float diffuse = max(facing, 0.0);
     float light = 0.3 * occlusion + 0.75 * diffuse * shadow;
+    light *= 1.0 - stackShade * vLayer;
 
     // Faces turned away from the light get no highlight.
     vec3 halfway = normalize(lightDirection + normalize(cameraPosition - vWorld));
@@ -228,10 +257,12 @@ function addBox(
     uvs: number[];
     parts: number[];
     faces: number[];
+    layers: number[];
     indices: number[];
   },
   [x0, x1, y0, y1, z0, z1]: number[],
   part: number,
+  layer = 0,
 ) {
   const sides = [
     {
@@ -305,6 +336,7 @@ function addBox(
       target.uvs.push(x / segmentWidth + 0.5, y / segmentHeight + 0.5);
       target.parts.push(part);
       target.faces.push(face);
+      target.layers.push(layer);
     }
     target.indices.push(base, base + 1, base + 2, base, base + 2, base + 3);
   }
@@ -321,6 +353,7 @@ function createSegmentGeometry(count: number) {
     uvs: [],
     parts: [],
     faces: [],
+    layers: [],
     indices: [],
   };
 
@@ -329,6 +362,16 @@ function createSegmentGeometry(count: number) {
   addBox(data, [-x, x, gap, top, -2 * t, -t], 0);
   addBox(data, [-x, x, -top, -gap, -2 * t, -t], 1);
   addBox(data, [-x, x, gap, top, -t, 0], 2);
+  for (let layer = 1; layer <= stackCount; layer++) {
+    const front = -2 * t - (layer - 1) * stackSpacing - 0.001;
+    addBox(
+      data,
+      [-x, x, -top - layer * stackStep, -gap, front - stackSpacing / 2, front],
+      5,
+      layer,
+    );
+  }
+  const housingFront = -2 * t - stackCount * stackSpacing - 0.005;
   addBox(
     data,
     [
@@ -336,8 +379,8 @@ function createSegmentGeometry(count: number) {
       segmentWidth / 2,
       -segmentHeight / 2,
       segmentHeight / 2,
-      -2 * t - 0.02,
-      -2 * t - 0.01,
+      housingFront - 0.01,
+      housingFront,
     ],
     3,
   );
@@ -363,6 +406,7 @@ function createSegmentGeometry(count: number) {
   geometry.setAttribute("uv", new Float32BufferAttribute(data.uvs, 2));
   geometry.setAttribute("part", new Float32BufferAttribute(data.parts, 1));
   geometry.setAttribute("face", new Float32BufferAttribute(data.faces, 1));
+  geometry.setAttribute("layer", new Float32BufferAttribute(data.layers, 1));
   geometry.setAttribute(
     "chars",
     new InstancedBufferAttribute(new Float32Array(count * 2), 2).setUsage(
@@ -433,6 +477,8 @@ export function Segments({
           housingColor: { value: new Color(housingColor) },
           pinColor: { value: new Color(pinColor) },
           pinSpecular: { value: pinSpecular },
+          stackStep: { value: stackStep },
+          stackShade: { value: stackShade },
         },
       }),
     [],
