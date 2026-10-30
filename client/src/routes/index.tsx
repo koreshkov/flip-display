@@ -1,9 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router'
+import { SplitFlipDisplay } from '~/components/SplitFlipDisplay'
 
 export const Route = createFileRoute('/')({
-  component: Home,
+  component: SplitFlipDisplay,
 })
-
-function Home() {
-  return <h1>Flip Display</h1>
-}

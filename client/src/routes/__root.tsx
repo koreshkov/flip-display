@@ -6,6 +6,7 @@ import {
   Outlet,
   Scripts,
 } from '@tanstack/react-router'
+import appCss from '~/styles.css?url'
 
 export const Route = createRootRoute({
   head: () => ({
@@ -14,6 +15,7 @@ export const Route = createRootRoute({
       { name: 'viewport', content: 'width=device-width, initial-scale=1' },
       { title: 'Flip Display' },
     ],
+    links: [{ rel: 'stylesheet', href: appCss }],
   }),
   component: RootComponent,
 })
