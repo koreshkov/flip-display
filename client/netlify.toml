@@ -1,0 +1,5 @@
+# Read from the site's base directory (client). The Vite plugin generates the
+# server function; the client assets have to be published from here.
+[build]
+  command = "npm run build"
+  publish = "dist/client"
