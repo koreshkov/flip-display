@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { Canvas } from "@react-three/fiber";
-import { PerspectiveCamera } from "@react-three/drei";
+import { Environment, Lightformer, PerspectiveCamera } from "@react-three/drei";
 import { Board } from "./Board";
 import { ConfigModal } from "./ConfigModal";
 import { Overlay } from "./Overlay";
@@ -42,6 +42,24 @@ export function SplitFlipDisplay() {
           position={[-lightPosition[0], -lightPosition[1], lightPosition[2]]}
           intensity={0.75}
         />
+        {/* Soft studio panels behind the camera, mirrored by the glossy board.
+            Built in place, so no HDR file has to be downloaded. */}
+        <Environment resolution={256} environmentIntensity={0.18}>
+          <Lightformer
+            form="rect"
+            position={[6, 5, 12]}
+            scale={[14, 8, 1]}
+            target={[0, 0, 0]}
+            intensity={2}
+          />
+          <Lightformer
+            form="rect"
+            position={[-9, -2, 10]}
+            scale={[3, 12, 1]}
+            target={[0, 0, 0]}
+            intensity={0.6}
+          />
+        </Environment>
         <Board rows={config.rows} columns={config.columns} />
         <Segments
           rows={config.rows}
