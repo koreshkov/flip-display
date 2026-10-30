@@ -48,6 +48,12 @@ const stackCount = 3;
 const stackStep = 0.012;
 const stackSpacing = 0.006;
 const stackShade = 0.12;
+// No two segments are assembled alike: each sits slightly off its nominal
+// place, and every flap is printed a little off and differs in shade.
+const positionJitter = 0.004;
+const rotationJitter = 0.005;
+const printJitter = 0.012;
+const shadeJitter = 0.12;
 // Width of the soft edge of the shadow the board casts into each hole.
 const shadowPenumbra = 0.05;
 // Ambient light left at the edges of a hole, recessed behind the board.
@@ -74,6 +80,7 @@ const vertexShader = /* glsl */ `
   attribute float layer;
   attribute vec2 chars;
   attribute float progress;
+  attribute float seed;
 
   uniform float hingeZ;
   uniform float settleLength;
@@ -89,6 +96,7 @@ const vertexShader = /* glsl */ `
   varying vec3 vWorld;
   varying vec3 vPosition;
   varying float vLayer;
+  varying float vSeed;
 
   // Released from upright, the flap speeds up as it falls, then bounces
   // off the stop when it is the last one to drop.
@@ -120,6 +128,7 @@ const vertexShader = /* glsl */ `
     vPart = part;
     vFace = face;
     vLayer = layer;
+    vSeed = seed;
     vChars = chars;
     vec4 world = modelMatrix * instanceMatrix * vec4(transformed, 1.0);
     vWorld = world.xyz;
@@ -145,6 +154,8 @@ const fragmentShader = /* glsl */ `
   uniform float pinSpecular;
   uniform float stackStep;
   uniform float stackShade;
+  uniform float printJitter;
+  uniform float shadeJitter;
 
   varying vec2 vUv;
   varying vec3 vNormal;
@@ -156,6 +167,11 @@ const fragmentShader = /* glsl */ `
   varying vec3 vWorld;
   varying vec3 vPosition;
   varying float vLayer;
+  varying float vSeed;
+
+  float hash(vec3 p) {
+    return fract(sin(dot(p, vec3(12.9898, 78.233, 37.719))) * 43758.5453);
+  }
 
   // Distance inside the hole outline, negative outside of it.
   float insideHole(vec2 p) {
@@ -210,7 +226,11 @@ const fragmentShader = /* glsl */ `
         index = vChars.y;
         uv.y = 1.0 - uv.y;
       }
-      color = atlasColor(index, uv);
+      // Every flap is its own print: one character's half on one segment.
+      vec3 flap = vec3(vSeed, floor(index + 0.5), step(0.5, uv.y));
+      vec2 misprint = vec2(hash(flap), hash(flap + 1.0)) - 0.5;
+      color = atlasColor(index, uv + misprint * printJitter) *
+        (1.0 + (hash(flap + 2.0) - 0.5) * shadeJitter);
     }
 
     // Follow the ray towards the light up to the board: if it leaves
@@ -342,6 +362,13 @@ function addBox(
   }
 }
 
+// Repeatable pseudo-random number in [0, 1) for a segment, so the board looks
+// the same after every resize or remount.
+function random(index: number, salt: number) {
+  const value = Math.sin(index * 12.9898 + salt * 78.233) * 43758.5453;
+  return value - Math.floor(value);
+}
+
 function createSegmentGeometry(count: number) {
   const x = segmentWidth / 2 - flapMargin;
   const top = segmentHeight / 2 - flapMargin;
@@ -414,6 +441,13 @@ function createSegmentGeometry(count: number) {
     ),
   );
   geometry.setAttribute(
+    "seed",
+    new InstancedBufferAttribute(
+      Float32Array.from({ length: count }, (_, i) => random(i, 0)),
+      1,
+    ),
+  );
+  geometry.setAttribute(
     "progress",
     new InstancedBufferAttribute(new Float32Array(count), 1).setUsage(
       DynamicDrawUsage,
@@ -479,6 +513,8 @@ export function Segments({
           pinSpecular: { value: pinSpecular },
           stackStep: { value: stackStep },
           stackShade: { value: stackShade },
+          printJitter: { value: printJitter },
+          shadeJitter: { value: shadeJitter },
         },
       }),
     [],
@@ -534,9 +570,17 @@ export function Segments({
     const matrix = new Matrix4();
     for (let row = 0; row < rows; row++) {
       for (let column = 0; column < columns; column++) {
+        const i = row * columns + column;
         const [x, y] = getSegmentCenter(row, column, rows, columns);
-        matrix.makeTranslation(x, y, -segmentDepth);
-        mesh.current.setMatrixAt(row * columns + column, matrix);
+        const jitter = (salt: number) => random(i, salt) * 2 - 1;
+        matrix
+          .makeRotationZ(jitter(1) * rotationJitter)
+          .setPosition(
+            x + jitter(2) * positionJitter,
+            y + jitter(3) * positionJitter,
+            -segmentDepth,
+          );
+        mesh.current.setMatrixAt(i, matrix);
       }
     }
     mesh.current.instanceMatrix.needsUpdate = true;
