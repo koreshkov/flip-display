@@ -21,7 +21,7 @@ import {
 } from "~/display/layout";
 
 // Seconds for one flap to fall; each segment varies it a little.
-const flipDuration = 0.15;
+const flipDuration = 0.1;
 const flipDurationJitter = 0.15;
 // The last flap before the target bounces on landing for this many flip
 // durations.

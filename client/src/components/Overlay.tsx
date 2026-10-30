@@ -5,9 +5,10 @@ const idleTimeout = 5000;
 
 type OverlayProps = {
   onOpenConfig: () => void;
+  onOpenRemote: () => void;
 };
 
-export function Overlay({ onOpenConfig }: OverlayProps) {
+export function Overlay({ onOpenConfig, onOpenRemote }: OverlayProps) {
   const [fullscreen, setFullscreen] = useState(false);
   const [idle, setIdle] = useState(false);
 
@@ -56,6 +57,9 @@ export function Overlay({ onOpenConfig }: OverlayProps) {
         ) : (
           <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3" />
         )}
+      </OverlayButton>
+      <OverlayButton label="Remote control" onClick={onOpenRemote}>
+        <path d="M3 3h6v6H3zM15 3h6v6h-6zM3 15h6v6H3zM15 15h2v2h-2zM19 19h2v2h-2zM15 19h2M19 15h2" />
       </OverlayButton>
       <OverlayButton label="Configure" onClick={onOpenConfig}>
         <path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6" />

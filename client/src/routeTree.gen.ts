@@ -10,33 +10,43 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as RemoteDisplayIdRouteImport } from './routes/remote.$displayId'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const RemoteDisplayIdRoute = RemoteDisplayIdRouteImport.update({
+  id: '/remote/$displayId',
+  path: '/remote/$displayId',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/remote/$displayId': typeof RemoteDisplayIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/remote/$displayId': typeof RemoteDisplayIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/remote/$displayId': typeof RemoteDisplayIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/'
+  fullPaths: '/' | '/remote/$displayId'
   fileRoutesByTo: FileRoutesByTo
-  to: '/'
-  id: '__root__' | '/'
+  to: '/' | '/remote/$displayId'
+  id: '__root__' | '/' | '/remote/$displayId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  RemoteDisplayIdRoute: typeof RemoteDisplayIdRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -48,11 +58,19 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/remote/$displayId': {
+      id: '/remote/$displayId'
+      path: '/remote/$displayId'
+      fullPath: '/remote/$displayId'
+      preLoaderRoute: typeof RemoteDisplayIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  RemoteDisplayIdRoute: RemoteDisplayIdRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

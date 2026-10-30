@@ -3,25 +3,21 @@ import { Canvas } from "@react-three/fiber";
 import { PerspectiveCamera } from "@react-three/drei";
 import { Board } from "./Board";
 import { ConfigModal } from "./ConfigModal";
-import type { DisplayConfig } from "./ConfigModal";
 import { Overlay } from "./Overlay";
+import { RemoteModal } from "./RemoteModal";
 import { Segments } from "./Segments";
-import {
-  allCharacterGroups,
-  getCharset,
-  layoutMessage,
-} from "~/display/characters";
+import { getCharset, layoutMessage } from "~/display/characters";
+import { defaultConfig } from "~/display/config";
+import type { DisplayConfig } from "~/display/config";
+import { useDisplayPeer } from "~/display/useDisplayPeer";
 
 const lightPosition: [number, number, number] = [3, 3, 8];
 
 export function SplitFlipDisplay() {
-  const [config, setConfig] = useState<DisplayConfig>({
-    rows: 5,
-    columns: 12,
-    message: "HELLO WORLD",
-    characterGroups: allCharacterGroups,
-  });
+  const [config, setConfig] = useState<DisplayConfig>(defaultConfig);
   const [configOpen, setConfigOpen] = useState(false);
+  const [remoteOpen, setRemoteOpen] = useState(false);
+  const peer = useDisplayPeer(config, setConfig);
 
   const charset = useMemo(
     () => getCharset(config.characterGroups),
@@ -51,12 +47,23 @@ export function SplitFlipDisplay() {
           lightPosition={lightPosition}
         />
       </Canvas>
-      <Overlay onOpenConfig={() => setConfigOpen(true)} />
+      <Overlay
+        onOpenConfig={() => setConfigOpen(true)}
+        onOpenRemote={() => setRemoteOpen(true)}
+      />
       {configOpen && (
         <ConfigModal
           config={config}
           onSave={setConfig}
           onClose={() => setConfigOpen(false)}
+        />
+      )}
+      {remoteOpen && (
+        <RemoteModal
+          peerId={peer.peerId}
+          status={peer.status}
+          controllers={peer.controllers}
+          onClose={() => setRemoteOpen(false)}
         />
       )}
     </div>

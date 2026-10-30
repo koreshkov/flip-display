@@ -1,0 +1,56 @@
+import {
+  allCharacterGroups,
+  findUnsupportedCharacters,
+  getCharset,
+} from "./characters";
+import type { CharacterGroup } from "./characters";
+
+export type DisplayConfig = {
+  rows: number;
+  columns: number;
+  message: string;
+  characterGroups: CharacterGroup[];
+};
+
+export const maxRows = 20;
+export const maxColumns = 40;
+const maxMessageLength = 2000;
+
+export const defaultConfig: DisplayConfig = {
+  rows: 5,
+  columns: 12,
+  message: "HELLO WORLD",
+  characterGroups: allCharacterGroups,
+};
+
+function clampInteger(value: unknown, max: number, fallback: number) {
+  if (typeof value !== "number" || !Number.isFinite(value)) return fallback;
+  return Math.min(Math.max(Math.round(value), 1), max);
+}
+
+// Turns untrusted input (e.g. from a remote controller) into a valid config,
+// or null when it cannot be shown as is.
+export function sanitizeConfig(input: unknown): DisplayConfig | null {
+  if (typeof input !== "object" || input === null) return null;
+  const value = input as Record<string, unknown>;
+
+  const characterGroups = allCharacterGroups.filter(
+    (group) =>
+      Array.isArray(value.characterGroups) &&
+      value.characterGroups.includes(group),
+  );
+  const message =
+    typeof value.message === "string"
+      ? value.message.toUpperCase().slice(0, maxMessageLength)
+      : "";
+  if (findUnsupportedCharacters(message, getCharset(characterGroups)).length) {
+    return null;
+  }
+
+  return {
+    rows: clampInteger(value.rows, maxRows, defaultConfig.rows),
+    columns: clampInteger(value.columns, maxColumns, defaultConfig.columns),
+    message,
+    characterGroups,
+  };
+}
