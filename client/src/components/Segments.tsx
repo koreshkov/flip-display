@@ -33,6 +33,10 @@ const flapThickness = 0.03;
 // Space between the two halves around the hinge pin.
 const hingeGap = 0.012;
 const edgeColor = "#0c0c0c";
+// Clearance between the flaps and the hole, showing the housing around them.
+const flapMargin = 0.03;
+const cornerRadius = 0.035;
+const housingColor = "#0e0e0e";
 // Width of the soft edge of the shadow the board casts into each hole.
 const shadowPenumbra = 0.05;
 // Ambient light left at the edges of a hole, recessed behind the board.
@@ -47,6 +51,7 @@ const specularStrength = 0.025;
 // 2 - the falling flap: current character's top half on its front, next
 //     character's bottom half on its back. It sits in front of the other
 //     two and rotates about the hinge line, landing exactly over flap 1.
+// 3 - the housing plate behind the flaps, seen around them.
 // `face` tells the printed front (0) and back (1) from the bare edges (2).
 const vertexShader = /* glsl */ `
   #include <common>
@@ -68,6 +73,7 @@ const vertexShader = /* glsl */ `
   varying float vAngle;
   varying vec3 vLocal;
   varying vec3 vWorld;
+  varying vec3 vPosition;
 
   // Released from upright, the flap speeds up as it falls, then bounces
   // off the stop when it is the last one to drop.
@@ -82,7 +88,7 @@ const vertexShader = /* glsl */ `
     vec3 normalDirection = normal;
     vAngle = flapAngle(progress);
 
-    if (part > 1.5) {
+    if (part > 1.5 && part < 2.5) {
       float c = cos(vAngle);
       float s = sin(vAngle);
       mat2 rotation = mat2(c, s, -s, c);
@@ -93,6 +99,7 @@ const vertexShader = /* glsl */ `
     }
 
     vUv = uv;
+    vPosition = position;
     vLocal = transformed;
     vNormal = normalDirection;
     vPart = part;
@@ -115,6 +122,9 @@ const fragmentShader = /* glsl */ `
   uniform float edgeOcclusion;
   uniform float shininess;
   uniform float specularStrength;
+  uniform vec2 flapSize;
+  uniform float cornerRadius;
+  uniform vec3 housingColor;
 
   varying vec2 vUv;
   varying vec3 vNormal;
@@ -124,6 +134,7 @@ const fragmentShader = /* glsl */ `
   varying float vAngle;
   varying vec3 vLocal;
   varying vec3 vWorld;
+  varying vec3 vPosition;
 
   // Distance inside the hole outline, negative outside of it.
   float insideHole(vec2 p) {
@@ -131,10 +142,24 @@ const fragmentShader = /* glsl */ `
     return min(inside.x, inside.y);
   }
 
+  // Signed distance to a rectangle with rounded corners, centred at 0.
+  float roundedRect(vec2 p, vec2 halfSize, float radius) {
+    vec2 q = abs(p) - halfSize + radius;
+    return length(max(q, 0.0)) + min(max(q.x, q.y), 0.0) - radius;
+  }
+
   void main() {
+    // Round the flaps' outer corners, measured before the flap rotates.
+    if (vPart < 2.5 &&
+        roundedRect(vPosition.xy, flapSize / 2.0, cornerRadius) > 0.0) {
+      discard;
+    }
+
     vec3 color = edgeColor;
 
-    if (vFace < 1.5) {
+    if (vPart > 2.5) {
+      color = housingColor;
+    } else if (vFace < 1.5) {
       vec2 uv = vUv;
       float index = vPart < 0.5 ? vChars.y : vChars.x;
       if (vPart > 1.5 && vFace > 0.5) {
@@ -275,8 +300,8 @@ function addBox(
 }
 
 function createSegmentGeometry(count: number) {
-  const x = segmentWidth / 2;
-  const top = segmentHeight / 2;
+  const x = segmentWidth / 2 - flapMargin;
+  const top = segmentHeight / 2 - flapMargin;
   const gap = hingeGap / 2;
   const t = flapThickness;
   const data = {
@@ -293,6 +318,18 @@ function createSegmentGeometry(count: number) {
   addBox(data, [-x, x, gap, top, -2 * t, -t], 0);
   addBox(data, [-x, x, -top, -gap, -2 * t, -t], 1);
   addBox(data, [-x, x, gap, top, -t, 0], 2);
+  addBox(
+    data,
+    [
+      -segmentWidth / 2,
+      segmentWidth / 2,
+      -segmentHeight / 2,
+      segmentHeight / 2,
+      -2 * t - 0.02,
+      -2 * t - 0.01,
+    ],
+    3,
+  );
 
   const geometry = new BufferGeometry();
   geometry.setIndex(data.indices);
@@ -364,6 +401,14 @@ export function Segments({
           edgeOcclusion: { value: edgeOcclusion },
           shininess: { value: shininess },
           specularStrength: { value: specularStrength },
+          flapSize: {
+            value: new Vector2(
+              segmentWidth - 2 * flapMargin,
+              segmentHeight - 2 * flapMargin,
+            ),
+          },
+          cornerRadius: { value: cornerRadius },
+          housingColor: { value: new Color(housingColor) },
         },
       }),
     [],

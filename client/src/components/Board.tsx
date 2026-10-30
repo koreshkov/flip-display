@@ -132,8 +132,8 @@ export function Board({ rows = 5, columns = 12 }: BoardProps) {
           clearcoatRoughness={0.1}
         />
       </mesh>
-      {/* Dark cavity behind the holes, seen around the recessed segments. */}
-      <mesh position-z={-segmentDepth - 0.05}>
+      {/* Dark cavity behind the board, behind the segments' housings. */}
+      <mesh position-z={-segmentDepth - 0.15}>
         <planeGeometry
           args={[coverHeight * aspect + 2 * buffer, coverHeight + 2 * buffer]}
         />
