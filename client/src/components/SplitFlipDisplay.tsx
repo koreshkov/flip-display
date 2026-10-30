@@ -1,19 +1,20 @@
-import { Canvas } from '@react-three/fiber'
-import { OrbitControls, PerspectiveCamera } from '@react-three/drei'
+import { Canvas } from "@react-three/fiber";
+import { PerspectiveCamera } from "@react-three/drei";
+import { Board } from "./Board";
 
 export function SplitFlipDisplay() {
   return (
-    <div className="fixed inset-0 bg-neutral-950">
+    <div className="fixed inset-0 bg-neutral-500">
       <Canvas>
-        <PerspectiveCamera makeDefault position={[3, 3, 5]} fov={50} />
-        <OrbitControls />
+        <color attach="background" args={["#737373"]} />
+        {/* Board moves the camera along z to fit its visible area. */}
+        <PerspectiveCamera makeDefault rotation={[0, 0, 0]} fov={20} />
         <ambientLight intensity={0.3} />
-        <directionalLight position={[5, 5, 5]} intensity={2} />
-        <mesh>
-          <boxGeometry args={[1, 1, 1]} />
-          <meshStandardMaterial color="orange" />
-        </mesh>
+        {/* Grazing angle: the flat face reflects away from the camera, while
+            the bevels tilt towards the light and bounce it back. */}
+        <directionalLight position={[3, 3, 8]} intensity={3} />
+        <Board />
       </Canvas>
     </div>
-  )
+  );
 }
