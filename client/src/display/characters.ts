@@ -32,7 +32,39 @@ export function findUnsupportedCharacters(message: string, charset: string) {
 
 // Word-wraps the message to the grid and centers it both ways. Returns one
 // string per row, each exactly `columns` long.
-export function layoutMessage(message: string, rows: number, columns: number) {
+export const alignments = ["left", "center", "right", "justify"] as const;
+// "justify" puts the first and last word at the row edges and spreads the
+// words evenly in between; a lone word stays on the left.
+export type Alignment = (typeof alignments)[number];
+
+function alignLine(line: string, columns: number, align: Alignment) {
+  const words = line.split(" ");
+  if (align === "justify" && words.length > 1) {
+    const gaps = words.length - 1;
+    const spaces = columns - words.join("").length;
+    return words
+      .map((word, index) => {
+        if (index === gaps) return word;
+        // Earlier gaps take the spaces that don't divide evenly.
+        const gap = Math.floor(spaces / gaps) + (index < spaces % gaps ? 1 : 0);
+        return word + " ".repeat(gap);
+      })
+      .join("");
+  }
+  if (align === "right") return line.padStart(columns);
+  if (align === "center") {
+    const left = Math.floor((columns - line.length) / 2);
+    return line.padStart(left + line.length).padEnd(columns);
+  }
+  return line.padEnd(columns);
+}
+
+export function layoutMessage(
+  message: string,
+  rows: number,
+  columns: number,
+  align: Alignment = "center",
+) {
   const wrapped: string[] = [];
   const text = message.trim();
 
@@ -61,11 +93,9 @@ export function layoutMessage(message: string, rows: number, columns: number) {
 
   const visible = wrapped.slice(0, rows);
   const top = Math.floor((rows - visible.length) / 2);
-  const lines = Array.from({ length: rows }, (_, row) => {
-    const line = visible[row - top] ?? "";
-    const left = Math.floor((columns - line.length) / 2);
-    return line.padStart(left + line.length).padEnd(columns);
-  });
+  const lines = Array.from({ length: rows }, (_, row) =>
+    alignLine(visible[row - top] ?? "", columns, align),
+  );
 
   return { lines, overflow: wrapped.length > rows };
 }

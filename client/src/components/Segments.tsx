@@ -520,6 +520,9 @@ type SegmentsProps = {
   charset: string;
   // CSS color of the characters.
   letterColor: string;
+  // Called once every flap has landed after `lines` changed, and once the
+  // board is at rest after this callback itself changes.
+  onSettled?: () => void;
   // Position of the scene's directional light, which lights the flaps.
   lightPosition: [x: number, y: number, z: number];
 };
@@ -530,11 +533,18 @@ export function Segments({
   lines,
   charset,
   letterColor,
+  onSettled,
   lightPosition,
 }: SegmentsProps) {
   const count = rows * columns;
   const mesh = useRef<InstancedMesh>(null);
   const atlas = useCharacterAtlas(charset, letterColor);
+  const settled = useRef(false);
+  const onSettledRef = useRef(onSettled);
+  useLayoutEffect(() => {
+    onSettledRef.current = onSettled;
+    settled.current = false;
+  }, [onSettled]);
 
   const geometry = useMemo(() => createSegmentGeometry(count), [count]);
   useEffect(() => () => geometry.dispose(), [geometry]);
@@ -624,6 +634,7 @@ export function Segments({
         segments.target[row * columns + column] = Math.max(index, 0);
       }
     }
+    settled.current = false;
   }, [segments, lines, charset, rows, columns]);
 
   useLayoutEffect(() => {
@@ -648,6 +659,8 @@ export function Segments({
   }, [rows, columns, atlas]);
 
   useFrame((_, delta) => {
+    // Hold the flaps until they can be seen.
+    if (!atlas) return;
     const { current, target, progress, duration } = segments;
     const chars = geometry.getAttribute("chars") as InstancedBufferAttribute;
     const progressAttribute = geometry.getAttribute(
@@ -682,6 +695,9 @@ export function Segments({
     if (changed) {
       chars.needsUpdate = true;
       progressAttribute.needsUpdate = true;
+    } else if (!settled.current) {
+      settled.current = true;
+      onSettledRef.current?.();
     }
   });
 

@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Canvas } from "@react-three/fiber";
 import { Environment, Lightformer, PerspectiveCamera } from "@react-three/drei";
 import { Board } from "./Board";
@@ -19,13 +19,31 @@ export function SplitFlipDisplay() {
   const [remoteOpen, setRemoteOpen] = useState(false);
   const peer = useDisplayPeer(config, setConfig);
 
+  // Messages take turns; the next one is due `interval` seconds after the
+  // current one has fully landed. Only grows, the message wraps around.
+  const [messageIndex, setMessageIndex] = useState(0);
+  const message = config.messages[messageIndex % config.messages.length];
+  const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
+  useEffect(() => setMessageIndex(0), [config.messages]);
+  useEffect(() => () => clearTimeout(timer.current), []);
+  const showNextLater = useCallback(() => {
+    clearTimeout(timer.current);
+    if (config.messages.length < 2) return;
+    timer.current = setTimeout(
+      () => setMessageIndex((index) => index + 1),
+      config.interval * 1000,
+    );
+  }, [config.messages.length, config.interval]);
+
   const charset = useMemo(
     () => getCharset(config.characterGroups),
     [config.characterGroups],
   );
   const lines = useMemo(
-    () => layoutMessage(config.message, config.rows, config.columns).lines,
-    [config.message, config.rows, config.columns],
+    () =>
+      layoutMessage(message.text, config.rows, config.columns, message.align)
+        .lines,
+    [message, config.rows, config.columns],
   );
 
   return (
@@ -67,6 +85,7 @@ export function SplitFlipDisplay() {
           lines={lines}
           charset={charset}
           letterColor={letterColors[config.letterColor].value}
+          onSettled={showNextLater}
           lightPosition={lightPosition}
         />
       </Canvas>
