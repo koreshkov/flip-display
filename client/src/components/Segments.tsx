@@ -31,7 +31,12 @@ const settleLength = 1.5;
 const bounceAngle = 0.12;
 const flapThickness = 0.03;
 // Space between the two halves around the hinge pin.
-const hingeGap = 0.012;
+const hingeGap = 0.026;
+// The pins the flaps turn on stick out into the margin at both sides.
+const pinRadius = 0.01;
+const pinColor = "#55534f";
+// Metal shines more than the satin flaps.
+const pinSpecular = 8;
 const edgeColor = "#0c0c0c";
 // Clearance between the flaps and the hole, showing the housing around them.
 const flapMargin = 0.03;
@@ -52,6 +57,7 @@ const specularStrength = 0.025;
 //     character's bottom half on its back. It sits in front of the other
 //     two and rotates about the hinge line, landing exactly over flap 1.
 // 3 - the housing plate behind the flaps, seen around them.
+// 4 - the hinge pins at both sides.
 // `face` tells the printed front (0) and back (1) from the bare edges (2).
 const vertexShader = /* glsl */ `
   #include <common>
@@ -125,6 +131,8 @@ const fragmentShader = /* glsl */ `
   uniform vec2 flapSize;
   uniform float cornerRadius;
   uniform vec3 housingColor;
+  uniform vec3 pinColor;
+  uniform float pinSpecular;
 
   varying vec2 vUv;
   varying vec3 vNormal;
@@ -157,7 +165,9 @@ const fragmentShader = /* glsl */ `
 
     vec3 color = edgeColor;
 
-    if (vPart > 2.5) {
+    if (vPart > 3.5) {
+      color = pinColor;
+    } else if (vPart > 2.5) {
       color = housingColor;
     } else if (vFace < 1.5) {
       vec2 uv = vUv;
@@ -196,6 +206,7 @@ const fragmentShader = /* glsl */ `
     vec3 halfway = normalize(lightDirection + normalize(cameraPosition - vWorld));
     float specular = specularStrength * shadow * step(0.0, facing) *
       pow(max(dot(normal, halfway), 0.0), shininess);
+    if (vPart > 3.5) specular *= pinSpecular;
 
     // The falling flap shades the still halves near the hinge, most when
     // it sticks straight out.
@@ -330,6 +341,17 @@ function createSegmentGeometry(count: number) {
     ],
     3,
   );
+  // Centred on the falling flap's hinge axis, z = -t / 2.
+  for (const side of [-1, 1]) {
+    const [x0, x1] = [side * x, side * (segmentWidth / 2 - 0.005)].sort(
+      (a, b) => a - b,
+    );
+    addBox(
+      data,
+      [x0, x1, -pinRadius, pinRadius, -t / 2 - pinRadius, -t / 2 + pinRadius],
+      4,
+    );
+  }
 
   const geometry = new BufferGeometry();
   geometry.setIndex(data.indices);
@@ -409,6 +431,8 @@ export function Segments({
           },
           cornerRadius: { value: cornerRadius },
           housingColor: { value: new Color(housingColor) },
+          pinColor: { value: new Color(pinColor) },
+          pinSpecular: { value: pinSpecular },
         },
       }),
     [],
